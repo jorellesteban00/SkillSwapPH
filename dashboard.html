@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>SkillSwap PH — Dashboard</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="style.css" rel="stylesheet">
+  <script src="global.js"></script>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+    
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    
+    window.requestNotificationPermission = async function() {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, { vapidKey: "YOUR_VAPID_KEY" });
+          const apiUrl = window.API_CONFIG?.BASE_URL || 'https://skillswapph-production.up.railway.app/api/v1';
+          const authToken = localStorage.getItem('access_token');
+          await fetch(`${apiUrl}/fcm/register-token`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token })
+          });
+          showToast('✅ Notifications enabled!');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+    
+    onMessage(messaging, (payload) => {
+      showToast(`🔔 ${payload.notification?.title || 'New notification'}: ${payload.notification?.body || ''}`);
+      if (window.loadUnreadCounts) window.loadUnreadCounts();
+      if (window.loadNotifications) window.loadNotifications();
+    });
+    
+    if (localStorage.getItem('access_token')) {
+      setTimeout(() => { if (Notification.permission === 'default') window.requestNotificationPermission(); }, 2000);
+    }
+  </script>
+
+  <style>
+    * {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-light: #eff6ff;
+      --blue-mid: #dbeafe;
+      --green: #10b981;
+      --green-light: #dcfce7;
+      --yellow: #f59e0b;
+      --yellow-light: #fef9c3;
+      --red: #ef4444;
+      --red-light: #fee2e2;
+      --text: #0f172a;
+      --text-mid: #475569;
+      --text-light: #94a3b8;
+      --border: #e2e8f0;
+      --bg: #f1f5f9;
+      --white: #ffffff;
+      --nav-h: 64px;
+      --sidebar-w: 260px;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+    .topnav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 160px; }
+    .brand-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .brand-name { font-size: 1rem; font-weight: 800; color: var(--text); white-space: nowrap; }
+
+    .search-bar {
+      flex: 1;
+      max-width: 380px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 6px 12px;
+    }
+    .search-bar:focus-within { border-color: var(--blue); background: white; }
+    .search-bar input { flex: 1; border: none; background: transparent; outline: none; font-size: 0.8rem; }
+
+    .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; position: relative; }
+    .nav-btn {
+      width: 36px; height: 36px; border-radius: 10px; border: 1.5px solid var(--border);
+      background: white; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-mid); position: relative;
+    }
+    .nav-btn:hover { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
+    .nav-btn .badge {
+      position: absolute; top: -6px; right: -6px;
+      min-width: 18px; height: 18px;
+      border-radius: 50%; background: var(--red); color: white;
+      font-size: 0.6rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 4px;
+    }
+    .avatar-btn {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--blue);
+      color: white; font-size: 0.8rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+
+    /* Notification Dropdown */
+    .notification-dropdown {
+      position: absolute;
+      top: 50px;
+      right: 0;
+      width: 320px;
+      max-height: 400px;
+      background: white;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+      z-index: 200;
+      display: none;
+      overflow: hidden;
+      flex-direction: column;
+    }
+    .notification-dropdown.show {
+      display: flex;
+    }
+    .notification-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .notification-list {
+      max-height: 350px;
+      overflow-y: auto;
+    }
+    .notification-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .notification-item:hover {
+      background: var(--blue-light);
+    }
+    .notification-item.unread {
+      background: var(--bg);
+    }
+    .notification-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .notification-body {
+      font-size: 0.7rem;
+      color: var(--text-mid);
+      margin-bottom: 4px;
+    }
+    .notification-time {
+      font-size: 0.55rem;
+      color: var(--text-light);
+    }
+    .notification-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-light);
+      font-size: 0.75rem;
+    }
+    .mark-all-read {
+      font-size: 0.65rem;
+      color: var(--blue);
+      cursor: pointer;
+    }
+    .mark-all-read:hover {
+      text-decoration: underline;
+    }
+
+    .layout { display: flex; margin-top: var(--nav-h); min-height: calc(100vh - var(--nav-h)); }
+
+    .sidebar {
+      width: var(--sidebar-w);
+      background: white;
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: var(--nav-h);
+      left: 0;
+      height: calc(100vh - var(--nav-h));
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 50;
+      transition: transform 0.3s ease;
+    }
+    .sidebar-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-light); padding: 16px 10px 6px; }
+    .sidebar-label:first-child { padding-top: 0; }
+    .nav-link {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      border-radius: 10px; font-size: 0.85rem; font-weight: 500;
+      color: var(--text-mid); cursor: pointer; text-decoration: none; transition: all 0.15s;
+    }
+    .nav-link:hover { background: var(--bg); color: var(--text); }
+    .nav-link.active { background: var(--blue-light); color: var(--blue); font-weight: 700; }
+    .logout-btn { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+    .btn-logout {
+      width: 100%; padding: 9px; border-radius: 10px; border: 1.5px solid var(--red-light);
+      background: var(--red-light); color: var(--red); font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .btn-logout:hover { background: var(--red); color: white; }
+
+    .main { margin-left: var(--sidebar-w); flex: 1; padding: 20px; overflow-x: hidden; }
+
+    .welcome-banner {
+      background: linear-gradient(135deg, #1e40af, #2563eb, #3b82f6);
+      border-radius: 16px; padding: 16px 20px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .section-title { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+    .see-all { font-size: 0.7rem; font-weight: 600; color: var(--blue); cursor: pointer; padding: 4px 10px; border-radius: 20px; }
+
+    .match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .match-card {
+      background: white; border-radius: 14px; border: 1px solid var(--border);
+      padding: 14px; transition: all 0.2s;
+    }
+    .match-card:hover { border-color: var(--blue); box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1); }
+    .match-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; cursor: pointer; }
+    .match-avatar {
+      width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, #2563eb, #3b82f6);
+      display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 1rem; flex-shrink: 0;
+    }
+    .match-info { flex: 1; }
+    .match-name { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+    .match-score { background: var(--green-light); color: var(--green); font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; display: inline-block; margin-top: 4px; }
+    .skill-section { margin-bottom: 10px; cursor: pointer; }
+    .skill-label { font-size: 0.6rem; font-weight: 700; color: var(--text-light); margin-bottom: 4px; }
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .skill-tag { font-size: 0.65rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .tag-offer { background: var(--green-light); color: #16a34a; }
+    .btn-connect {
+      width: 100%; margin-top: 8px; padding: 8px; border-radius: 10px;
+      border: 1.5px solid var(--blue); background: white; color: var(--blue);
+      font-weight: 700; font-size: 0.7rem; cursor: pointer;
+    }
+    .btn-connect:hover { background: var(--blue); color: white; }
+    .btn-connect.sent { background: var(--blue); color: white; cursor: default; }
+
+    .panel-card { background: white; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+    .panel-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .panel-title { font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+
+    .session-item { 
+      padding: 12px 14px; 
+      border-bottom: 1px solid #f1f5f9; 
+      cursor: pointer; 
+      transition: background 0.2s;
+    }
+    .session-item:hover { background: var(--bg); }
+    .session-date { font-size: 0.65rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+    .session-row { font-size: 0.65rem; color: var(--text-mid); display: flex; gap: 6px; flex-wrap: wrap; }
+    .session-badge { 
+      font-size: 0.55rem; 
+      font-weight: 700; 
+      padding: 2px 8px; 
+      border-radius: 20px; 
+      display: inline-block; 
+      margin-top: 4px; 
+    }
+    .badge-pending { background: #fef9c3; color: #a16207; }
+    .badge-confirmed { background: #dcfce7; color: #16a34a; }
+    .badge-completed { background: #dbeafe; color: #2563eb; }
+
+    .review-item { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+    .review-item:hover { background: var(--blue-light); }
+    .review-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .review-avatar { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.65rem; }
+    .review-name { font-size: 0.7rem; font-weight: 700; }
+    .review-stars { color: #fbbf24; font-size: 0.6rem; }
+    .review-time { font-size: 0.55rem; color: var(--text-light); margin-left: auto; }
+    .review-text { font-size: 0.65rem; color: var(--text-mid); line-height: 1.4; }
+    .reviews-card { background: white; border-radius: 14px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 24px; }
+
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: #0f172a; color: white; padding: 8px 16px; border-radius: 10px;
+      font-size: 0.7rem; transition: transform 0.3s ease; z-index: 999; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #overlay { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(2px); }
+    #overlay.show { display: block; }
+    .hamburger { display: none; }
+
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 12px; }
+      .hamburger { display: flex; }
+      .brand { min-width: auto; }
+      .brand-name { display: none; }
+      .search-bar { max-width: 100%; }
+      .match-grid { grid-template-columns: 1fr; }
+      .notification-dropdown { width: 300px; right: -20px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="toast"></div>
+  <div id="overlay" onclick="toggleSidebar()"></div>
+
+  <!-- Notification Dropdown -->
+  <div class="notification-dropdown" id="notificationDropdown">
+    <div class="notification-header">
+      <span>🔔 Notifications</span>
+      <span class="mark-all-read" onclick="markAllNotificationsRead()">Mark all as read</span>
+    </div>
+    <div class="notification-list" id="notificationList">
+      <div class="notification-empty">Loading notifications...</div>
+    </div>
+  </div>
+
+  <nav class="topnav">
+    <button class="hamburger nav-btn" onclick="toggleSidebar()" aria-label="Menu">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="2" y1="5" x2="16" y2="5" />
+        <line x1="2" y1="9" x2="16" y2="9" />
+        <line x1="2" y1="13" x2="16" y2="13" />
+      </svg>
+    </button>
+    <div class="brand">
+      <div class="brand-logo"><svg width="18" height="18" viewBox="0 0 28 28" fill="none"><path d="M7 9l7-5 7 5v10l-7 5-7-5V9z" fill="white" opacity="0.9" /></svg></div>
+      <span class="brand-name">SkillSwap PH</span>
+    </div>
+    <div class="search-bar">
+      <svg width="12" height="12" fill="none" stroke="#94a3b8" stroke-width="2" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search skills..." oninput="handleSearch(this.value)" />
+      <span id="clearSearch" style="cursor:pointer;color:#94a3b8;display:none;" onclick="clearSearchInput()">✕</span>
+    </div>
+    <div class="nav-actions">
+      <div class="nav-btn" onclick="toggleNotificationDropdown()" style="position:relative;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        <span class="badge" id="notifBadge" style="display: none;">0</span>
+      </div>
+      <div class="nav-btn" onclick="window.location.href='messages.html'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span class="badge" id="msgBadge" style="display: none;">0</span>
+      </div>
+      <div class="avatar-btn" id="userAvatar" onclick="window.location.href='profile.html'">US</div>
+    </div>
+  </nav>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <p class="sidebar-label">Navigation</p>
+      <a href="dashboard.html" class="nav-link active">📊 Dashboard</a>
+      <a href="skills.html" class="nav-link">🔧 My Skills</a>
+      <a href="matches.html" class="nav-link">🤝 Matches</a>
+      <a href="exchanges.html" class="nav-link">🔄 Exchanges</a>
+      <a href="messages.html" class="nav-link">💬 Messages</a>
+      <a href="profile.html" class="nav-link">👤 Profile</a>
+      <a href="admin.html" class="nav-link" id="adminLink" style="display: none;">⚙️ Admin Panel</a>
+      <div class="logout-btn"><button class="btn-logout" onclick="logout()">🚪 Log Out</button></div>
+    </aside>
+
+    <main class="main">
+      <div class="welcome-banner">
+        <div>
+          <p style="color:rgba(255,255,255,0.7);font-size:0.65rem;">Good day 👋</p>
+          <h2 id="welcomeName" style="color:white;font-size:0.95rem;font-weight:800;margin:2px 0;">Welcome back!</h2>
+        </div>
+        <div style="display:flex;gap:16px;">
+          <div style="text-align:center;"><p style="color:white;font-size:1rem;font-weight:800;" id="statExchanges">0</p><p style="color:rgba(255,255,255,0.65);font-size:0.55rem;">Exchanges</p></div>
+          <div style="text-align:center;"><p style="color:white;font-size:1rem;font-weight:800;" id="statSkills">0</p><p style="color:rgba(255,255,255,0.65);font-size:0.55rem;">Skills</p></div>
+          <div style="text-align:center;"><p style="color:white;font-size:1rem;font-weight:800;" id="statRating">—</p><p style="color:rgba(255,255,255,0.65);font-size:0.55rem;">Rating</p></div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">🔄 Skill Matching System</div>
+        <a class="see-all" onclick="window.location.href='matches.html'">See All →</a>
+      </div>
+      <div class="match-grid" id="matchGrid"><div style="text-align:center;padding:30px;color:var(--text-light);">Loading matches...</div></div>
+
+      <div class="panel-card">
+        <div class="panel-head"><div class="panel-title">📅 Upcoming Sessions</div><a class="see-all" onclick="window.location.href='messages.html'">View All →</a></div>
+        <div id="sessionsList"><div class="session-item"><div style="padding:6px 0;color:var(--text-mid);">Loading sessions...</div></div></div>
+      </div>
+
+      <div class="section-header"><div class="section-title">⭐ Recent Reviews</div></div>
+      <div class="reviews-card"><div id="reviewsList"><div class="review-item"><div style="padding:6px 0;color:var(--text-mid);">Loading reviews...</div></div></div></div>
+    </main>
+  </div>
+
+  <script>
+    let sentRequests = JSON.parse(localStorage.getItem('sentRequests') || '{}');
+    let currentUserData = null;
+    let notifications = [];
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function viewProfile(userId) {
+      if (!userId) {
+        showToast('❌ Unable to view profile');
+        return;
+      }
+      window.location.href = `profile.html?id=${userId}`;
+    }
+
+    function toggleNotificationDropdown() {
+      const dropdown = document.getElementById('notificationDropdown');
+      dropdown.classList.toggle('show');
+      if (dropdown.classList.contains('show')) {
+        loadNotifications();
+      }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById('notificationDropdown');
+      const bellBtn = document.querySelector('.nav-actions .nav-btn:first-child');
+      if (dropdown && bellBtn && !bellBtn.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+      }
+    });
+
+    async function loadNotifications() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      
+      try {
+        // Get sessions where user is receiver and status is pending
+        const sessionsResponse = await fetch(`${API_URL}/sessions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const sessions = await sessionsResponse.json();
+        
+        // Get conversations for unread messages
+        const convResponse = await fetch(`${API_URL}/messages/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const conversations = await convResponse.json();
+        
+        notifications = [];
+        
+        // Add session proposals as notifications
+        sessions.forEach(session => {
+          if (session.status === 'pending' && !session.is_mine) {
+            notifications.push({
+              id: `session_${session.id}`,
+              type: 'session',
+              title: '📅 Session Proposal',
+              body: `${session.proposer_name} proposed a session about ${session.skill_tag || 'skill exchange'}`,
+              time: session.created_at,
+              read: false,
+              data: { session_id: session.id, user_id: session.proposer_id }
+            });
+          }
+        });
+        
+        // Add unread messages as notifications (group by conversation)
+        conversations.forEach(conv => {
+          if (conv.unread_count > 0) {
+            notifications.push({
+              id: `message_${conv.user_id}`,
+              type: 'message',
+              title: '💬 New Message',
+              body: `${conv.unread_count} new message${conv.unread_count > 1 ? 's' : ''} from ${conv.username}`,
+              time: conv.last_message_time,
+              read: false,
+              data: { user_id: conv.user_id, username: conv.username }
+            });
+          }
+        });
+        
+        // Sort by time (newest first)
+        notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+        
+        renderNotifications();
+        loadUnreadCounts();
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+      }
+    }
+
+    function renderNotifications() {
+      const container = document.getElementById('notificationList');
+      
+      if (!notifications.length) {
+        container.innerHTML = '<div class="notification-empty">✨ No new notifications</div>';
+        return;
+      }
+      
+      container.innerHTML = notifications.map(notif => `
+        <div class="notification-item" onclick="handleNotificationClick('${notif.type}', '${notif.data.user_id || notif.data.session_id}')">
+          <div class="notification-title">${notif.title}</div>
+          <div class="notification-body">${notif.body}</div>
+          <div class="notification-time">${formatDate(notif.time)}</div>
+        </div>
+      `).join('');
+    }
+
+    function handleNotificationClick(type, id) {
+      const dropdown = document.getElementById('notificationDropdown');
+      dropdown.classList.remove('show');
+      
+      if (type === 'message') {
+        window.location.href = `messages.html`;
+      } else if (type === 'session') {
+        window.location.href = `messages.html?tab=sessions`;
+      }
+    }
+
+    function markAllNotificationsRead() {
+      // Mark all as read (client-side for now)
+      notifications.forEach(n => n.read = true);
+      renderNotifications();
+      loadUnreadCounts();
+      showToast('✅ All notifications marked as read');
+    }
+
+    // INSTANT UNREAD COUNT FUNCTIONS
+    async function fetchUnreadMessagesCount() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return 0;
+      try {
+        const response = await fetch(`${API_URL}/messages/conversations`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return 0;
+        const conversations = await response.json();
+        const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+        return totalUnread;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    async function fetchUnreadNotificationsCount() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return 0;
+      try {
+        const response = await fetch(`${API_URL}/sessions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return 0;
+        const sessions = await response.json();
+        const pendingSessions = sessions.filter(s => s.status === 'pending' && !s.is_mine);
+        const unreadMessages = await fetchUnreadMessagesCount();
+        return pendingSessions.length + unreadMessages;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    async function loadUnreadCounts() {
+      try {
+        const unreadMessages = await fetchUnreadMessagesCount();
+        const unreadNotifications = await fetchUnreadNotificationsCount();
+        
+        const msgBadge = document.getElementById('msgBadge');
+        const notifBadge = document.getElementById('notifBadge');
+        
+        if (msgBadge) {
+          if (unreadMessages > 0) {
+            msgBadge.textContent = unreadMessages > 9 ? '9+' : unreadMessages;
+            msgBadge.style.display = 'flex';
+          } else {
+            msgBadge.style.display = 'none';
+          }
+        }
+        
+        if (notifBadge) {
+          if (unreadNotifications > 0) {
+            notifBadge.textContent = unreadNotifications > 9 ? '9+' : unreadNotifications;
+            notifBadge.style.display = 'flex';
+          } else {
+            notifBadge.style.display = 'none';
+          }
+        }
+      } catch (error) {
+        console.error('Error loading unread counts:', error);
+      }
+    }
+
+    async function fetchCurrentUser() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return null;
+      try {
+        const response = await fetch(`${API_URL}/users/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        return null;
+      }
+    }
+
+    async function fetchMatches() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return [];
+      try {
+        const response = await fetch(`${API_URL}/matches`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.matches || [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    async function fetchSessions() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return [];
+      try {
+        const response = await fetch(`${API_URL}/sessions`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return [];
+        return await response.json();
+      } catch (error) {
+        console.error('Fetch sessions error:', error);
+        return [];
+      }
+    }
+
+    async function fetchRecentReviews() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return [];
+      try {
+        const response = await fetch(`${API_URL}/reviews/user/${currentUserData?.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.reviews || [];
+      } catch (error) {
+        console.error('Fetch reviews error:', error);
+        return [];
+      }
+    }
+
+    async function createExchange(providerId, skillName) {
+      const token = localStorage.getItem('access_token');
+      if (!token) return null;
+      const scheduledDate = new Date();
+      scheduledDate.setDate(scheduledDate.getDate() + 7);
+      try {
+        const response = await fetch(`${API_URL}/exchanges`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            provider_id: providerId,
+            skill_name: skillName,
+            scheduled_date: scheduledDate.toISOString()
+          })
+        });
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function updateUserInfo(user) {
+      currentUserData = user;
+      document.getElementById('welcomeName').textContent = `Welcome back, ${user.username || user.email?.split('@')[0]}!`;
+      document.getElementById('userAvatar').textContent = (user.username || 'US').slice(0, 2).toUpperCase();
+      document.getElementById('statExchanges').textContent = user.total_exchanges || 0;
+      document.getElementById('statSkills').textContent = user.skills_offered?.length || 0;
+      document.getElementById('statRating').textContent = user.rating_avg || '—';
+      if (user.role === 'admin') {
+        const adminLink = document.getElementById('adminLink');
+        if (adminLink) adminLink.style.display = 'flex';
+      }
+      loadUnreadCounts();
+    }
+
+    function renderStarRating(rating) {
+      const fullStars = '★'.repeat(rating);
+      const emptyStars = '☆'.repeat(5 - rating);
+      return `<span class="review-stars">${fullStars}${emptyStars}</span>`;
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return 'Just now';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} min ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      return date.toLocaleDateString();
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderReviews(reviews) {
+      const container = document.getElementById('reviewsList');
+      if (!reviews.length) {
+        container.innerHTML = '<div class="review-item"><div style="padding:6px 0;color:var(--text-mid);">No reviews yet</div></div>';
+        return;
+      }
+      
+      container.innerHTML = reviews.slice(0, 5).map(review => `
+        <div class="review-item" onclick="viewProfile('${review.reviewer_id}')">
+          <div class="review-head">
+            <div class="review-avatar">${(review.reviewer_name || 'U').slice(0,2).toUpperCase()}</div>
+            <div class="review-info">
+              <div class="review-name">${escapeHtml(review.reviewer_name || 'User')}</div>
+              ${renderStarRating(review.rating)}
+            </div>
+            <div class="review-time">${formatDate(review.created_at)}</div>
+          </div>
+          ${review.comment ? `<div class="review-text">"${escapeHtml(review.comment)}"</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderSessions(sessions) {
+      const container = document.getElementById('sessionsList');
+      
+      if (!sessions.length) {
+        container.innerHTML = '<div class="session-item"><div style="padding:6px 0;color:var(--text-mid);">No sessions yet</div></div>';
+        return;
+      }
+      
+      const currentUser = currentUserData;
+      const userId = currentUser?.id;
+      
+      const upcomingSessions = sessions.filter(s => s.status === 'pending' || s.status === 'confirmed');
+      
+      if (!upcomingSessions.length) {
+        container.innerHTML = '<div class="session-item"><div style="padding:6px 0;color:var(--text-mid);">No upcoming sessions</div></div>';
+        return;
+      }
+      
+      upcomingSessions.sort((a, b) => new Date(a.scheduled_date) - new Date(b.scheduled_date));
+      
+      container.innerHTML = upcomingSessions.slice(0, 5).map(session => {
+        const otherPerson = session.is_mine ? session.receiver_name : session.proposer_name;
+        const otherUserId = session.is_mine ? session.receiver_id : session.proposer_id;
+        const sessionDate = new Date(session.scheduled_date);
+        const formattedDate = sessionDate.toLocaleString();
+        const statusText = session.status === 'pending' ? 'Pending' : 'Confirmed';
+        const statusClass = session.status === 'pending' ? 'badge-pending' : 'badge-confirmed';
+        
+        return `
+          <div class="session-item" onclick="viewProfile('${otherUserId}')">
+            <div class="session-date">📅 ${formattedDate}</div>
+            <div class="session-row">🤝 ${escapeHtml(otherPerson || 'User')}</div>
+            <div class="session-row">📚 ${escapeHtml(session.skill_tag || 'General')}</div>
+            <span class="session-badge ${statusClass}">${statusText}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMatches(matches) {
+      const grid = document.getElementById('matchGrid');
+      if (!matches.length) {
+        grid.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-light);">No matches found. Add interests to find skill partners!</div>';
+        return;
+      }
+      
+      grid.innerHTML = matches.slice(0, 6).map(m => {
+        let userId = m.user_id || m.id || m.matched_user_id || m.provider_id || m.target_user_id;
+        const username = m.username || m.name || 'User';
+        const matchScore = m.match_score || 85;
+        const skillsMatched = m.skills_matched || ['Skill Exchange'];
+        
+        return `
+          <div class="match-card">
+            <div class="match-header" onclick="viewProfile('${userId}')">
+              <div class="match-avatar">${(username).slice(0,2).toUpperCase()}</div>
+              <div class="match-info">
+                <div class="match-name">${escapeHtml(username)}</div>
+                <div class="match-score">${matchScore}% Match</div>
+              </div>
+            </div>
+            <div class="skill-section" onclick="viewProfile('${userId}')">
+              <div class="skill-label">Skills Matched</div>
+              <div class="skill-tags">${skillsMatched.map(s => `<span class="skill-tag tag-offer">${escapeHtml(s)}</span>`).join('') || 'None'}</div>
+            </div>
+            <button class="btn-connect ${sentRequests[userId] ? 'sent' : ''}" onclick="event.stopPropagation(); sendExchangeRequest('${userId}', this, '${escapeHtml(skillsMatched[0])}')">
+              ${sentRequests[userId] ? '✓ Request Sent' : 'Connect'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.sendExchangeRequest = async function(userId, btn, skillName) {
+      if (!userId) {
+        showToast('❌ Unable to send request');
+        return;
+      }
+      if (btn.classList.contains('sent')) return;
+      
+      btn.textContent = '...';
+      btn.disabled = true;
+      const result = await createExchange(userId, skillName);
+      if (result) {
+        sentRequests[userId] = true;
+        localStorage.setItem('sentRequests', JSON.stringify(sentRequests));
+        btn.textContent = '✓ Request Sent';
+        btn.classList.add('sent');
+        showToast('✅ Exchange request sent!');
+      } else {
+        btn.textContent = 'Connect';
+        btn.disabled = false;
+        showToast('❌ Failed to send request');
+      }
+    };
+
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('show'); }
+    function logout() { localStorage.removeItem('access_token'); localStorage.removeItem('saved_email'); localStorage.removeItem('user_email'); localStorage.removeItem('sentRequests'); window.location.href = 'index.html'; }
+    function handleSearch(val) { console.log('Searching:', val); }
+    function clearSearchInput() { document.getElementById('searchInput').value = ''; }
+
+    window.viewProfile = viewProfile;
+    window.sendExchangeRequest = sendExchangeRequest;
+    window.loadUnreadCounts = loadUnreadCounts;
+    window.loadNotifications = loadNotifications;
+    window.toggleNotificationDropdown = toggleNotificationDropdown;
+    window.handleNotificationClick = handleNotificationClick;
+    window.markAllNotificationsRead = markAllNotificationsRead;
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) { window.location.href = 'index.html'; return; }
+      const user = await fetchCurrentUser();
+      if (!user) { localStorage.removeItem('access_token'); window.location.href = 'index.html'; return; }
+      updateUserInfo(user);
+      
+      const matches = await fetchMatches();
+      renderMatches(matches);
+      
+      const sessions = await fetchSessions();
+      renderSessions(sessions);
+      
+      const reviews = await fetchRecentReviews();
+      renderReviews(reviews);
+      
+      await loadUnreadCounts();
+    });
+  </script>
+  <script src="config.js"></script>
+</body>
+
+</html>
